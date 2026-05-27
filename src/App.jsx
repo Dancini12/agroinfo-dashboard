@@ -191,20 +191,9 @@ function PainelTab({ moedas, acoes, indices, comm, pm, pa, pi, pc, flash }) {
   );
 }
 
-const RSS2JSON = "https://api.rss2json.com/v1/api.json?count=20&rss_url=";
 const NEWS_FEEDS = {
-  agro: {
-    label: "🌾 Agronegócio",
-    cor: "#166534",
-    bg: "#f0fdf4",
-    url: "https://news.google.com/rss/search?q=agroneg%C3%B3cio+soja+milho+boi+gordo+caf%C3%A9+brasil&hl=pt-BR&gl=BR&ceid=BR:pt-419",
-  },
-  mercado: {
-    label: "💰 Mercado",
-    cor: "#1a5276",
-    bg: "#f0f7ff",
-    url: "https://news.google.com/rss/search?q=economia+brasil+d%C3%B3lar+selic+bolsa+agroneg%C3%B3cio&hl=pt-BR&gl=BR&ceid=BR:pt-419",
-  },
+  agro:    { label: "🌾 Agronegócio", cor: "#166534", bg: "#f0fdf4" },
+  mercado: { label: "💰 Mercado",      cor: "#1a5276", bg: "#f0f7ff" },
 };
 
 function stripHtml(html = "") {
@@ -262,8 +251,8 @@ function NoticiasTab() {
     setHasError(false);
     try {
       const [aRes, mRes] = await Promise.allSettled([
-        fetch(RSS2JSON + encodeURIComponent(NEWS_FEEDS.agro.url)).then(r => r.json()),
-        fetch(RSS2JSON + encodeURIComponent(NEWS_FEEDS.mercado.url)).then(r => r.json()),
+        fetch("/api/news?feed=agro").then(r => r.json()),
+        fetch("/api/news?feed=mercado").then(r => r.json()),
       ]);
       setNews({
         agro:    aRes.status === "fulfilled" && aRes.value?.status === "ok" ? aRes.value.items : [],
