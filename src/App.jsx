@@ -200,13 +200,15 @@ function stripHtml(html = "") {
   return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&mdash;/g, "—").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  const diff = Date.now() - date.getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return "agora";
   if (m < 60) return `${m}min atrás`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h atrás`;
-  return `${Math.floor(h / 24)}d atrás`;
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 function NewsCard({ item, cor }) {

@@ -1,6 +1,6 @@
 const FEEDS = {
-  agro: "https://news.google.com/rss/search?q=agroneg%C3%B3cio+soja+milho+boi+gordo+caf%C3%A9+brasil&hl=pt-BR&gl=BR&ceid=BR:pt-419",
-  mercado: "https://news.google.com/rss/search?q=economia+brasil+d%C3%B3lar+selic+bolsa+agro&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+  agro:    "https://news.google.com/rss/search?q=agroneg%C3%B3cio+OR+soja+OR+milho+OR+boi+gordo+brasil+when%3A7d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+  mercado: "https://news.google.com/rss/search?q=economia+brasil+OR+d%C3%B3lar+OR+selic+OR+bolsa+when%3A7d&hl=pt-BR&gl=BR&ceid=BR:pt-419",
 };
 
 function getTag(xml, tag) {
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
       if (title) items.push({ title, author, link, pubDate, thumbnail });
     }
 
-    res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
+    res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=300");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.status(200).json({ status: "ok", items: items.slice(0, 20) });
   } catch (err) {
