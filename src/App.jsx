@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from "recharts";
-import { RefreshCw, BookOpen, BarChart3, Clock, Wheat, DollarSign, Activity, ChevronDown, ChevronUp, Timer, ArrowRight, Pause, Play, Newspaper } from "lucide-react";
+import { RefreshCw, BookOpen, BarChart3, Clock, Wheat, DollarSign, Activity, ChevronDown, ChevronUp, Timer, ArrowRight, Pause, Play, Newspaper, ExternalLink } from "lucide-react";
 
 const UPDATE_SEC = 60;
 const API_MOEDAS_URL = "https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,GBP-BRL,ARS-BRL";
@@ -191,25 +191,150 @@ function PainelTab({ moedas, acoes, indices, comm, pm, pa, pi, pc, flash }) {
   );
 }
 
-function NoticiasTab() {
-  const [exp, setExp] = useState({ agro: true, mercado: false, clima: false });
-  const [copied, setCopied] = useState(null);
-  const copy = (url) => { navigator.clipboard.writeText(url).catch(() => {}); setCopied(url); setTimeout(() => setCopied(null), 2000); };
+const RSS2JSON = "https://api.rss2json.com/v1/api.json?count=20&rss_url=";
+const NEWS_FEEDS = {
+  agro: {
+    label: "🌾 Agronegócio",
+    cor: "#166534",
+    bg: "#f0fdf4",
+    url: "https://news.google.com/rss/search?q=agroneg%C3%B3cio+soja+milho+boi+gordo+caf%C3%A9+brasil&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+  },
+  mercado: {
+    label: "💰 Mercado",
+    cor: "#1a5276",
+    bg: "#f0f7ff",
+    url: "https://news.google.com/rss/search?q=economia+brasil+d%C3%B3lar+selic+bolsa+agroneg%C3%B3cio&hl=pt-BR&gl=BR&ceid=BR:pt-419",
+  },
+};
+
+function stripHtml(html = "") {
+  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&mdash;/g, "—").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+}
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "agora";
+  if (m < 60) return `${m}min atrás`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h atrás`;
+  return `${Math.floor(h / 24)}d atrás`;
+}
+
+function NewsCard({ item, cor }) {
+  const desc = stripHtml(item.description || "").slice(0, 160);
   return (
-    <div className="space-y-4">
-      <Card className="p-3" style={{ borderLeft: "4px solid #1a5276", background: "#f0f7ff" }}><div className="text-xs"><strong>📌</strong> Toque em <strong>&quot;📋 Copiar&quot;</strong> → abra o navegador → cole o link.</div></Card>
-      {NEWS_LINKS.map((s) => (
-        <Card key={s.secao} className="overflow-hidden">
-          <button onClick={() => setExp(p => ({ ...p, [s.secao]: !p[s.secao] }))} className="w-full flex items-center justify-between p-3" style={{ background: s.bg }}><h3 className="text-sm font-bold" style={{ color: s.cor }}>{s.titulo}</h3>{exp[s.secao] ? <ChevronUp size={16} style={{ color: s.cor }} /> : <ChevronDown size={16} style={{ color: s.cor }} />}</button>
-          {exp[s.secao] && <div className="p-2 space-y-1.5">{s.items.map((item, i) => (
-            <div key={i} className="flex items-center gap-2 p-2 rounded-lg" style={{ background: i % 2 === 0 ? s.bg : "#fff" }}>
-              <span className="text-lg shrink-0">{item.icon}</span>
-              <div className="flex-1 min-w-0"><div className="text-sm font-bold" style={{ color: s.cor }}>{item.nome}</div><div className="text-xs opacity-30 truncate">{item.url}</div></div>
-              <button onClick={() => copy(item.url)} className="shrink-0 px-2 py-1 rounded-lg text-xs font-bold" style={{ background: copied === item.url ? "#166534" : s.cor, color: "#fff" }}>{copied === item.url ? "✅" : "📋"}</button>
+    <a href={item.link} target="_blank" rel="noopener noreferrer" className="block group">
+      <Card className="p-3 transition-shadow group-hover:shadow-md">
+        <div className="flex gap-3 items-start">
+          {item.thumbnail && (
+            <img src={item.thumbnail} alt="" className="w-16 h-16 object-cover rounded-lg shrink-0 bg-gray-100"
+              onError={e => { e.target.style.display = "none"; }} />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold leading-snug mb-1 group-hover:underline" style={{ color: cor }}>
+              {item.title}
             </div>
-          ))}</div>}
+            <div className="flex items-center gap-1.5 text-xs opacity-40 mb-1">
+              {item.author && <span className="font-medium">{item.author}</span>}
+              {item.author && <span>·</span>}
+              <span>{timeAgo(item.pubDate)}</span>
+            </div>
+            {desc && (
+              <div className="text-xs opacity-40 leading-relaxed line-clamp-2">{desc}</div>
+            )}
+          </div>
+          <ExternalLink size={11} className="shrink-0 opacity-20 mt-0.5" />
+        </div>
+      </Card>
+    </a>
+  );
+}
+
+function NoticiasTab() {
+  const [feed, setFeed] = useState("agro");
+  const [news, setNews] = useState({ agro: [], mercado: [] });
+  const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [hasError, setHasError] = useState(false);
+
+  const fetchNews = useCallback(async () => {
+    setLoading(true);
+    setHasError(false);
+    try {
+      const [aRes, mRes] = await Promise.allSettled([
+        fetch(RSS2JSON + encodeURIComponent(NEWS_FEEDS.agro.url)).then(r => r.json()),
+        fetch(RSS2JSON + encodeURIComponent(NEWS_FEEDS.mercado.url)).then(r => r.json()),
+      ]);
+      setNews({
+        agro:    aRes.status === "fulfilled" && aRes.value?.status === "ok" ? aRes.value.items : [],
+        mercado: mRes.status === "fulfilled" && mRes.value?.status === "ok" ? mRes.value.items : [],
+      });
+      setLastUpdate(new Date());
+    } catch (_) { setHasError(true); }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchNews();
+    const t = setInterval(fetchNews, 15 * 60 * 1000);
+    return () => clearInterval(t);
+  }, [fetchNews]);
+
+  const cfg = NEWS_FEEDS[feed];
+  const items = news[feed];
+
+  return (
+    <div className="space-y-3">
+      <Card className="p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex gap-2">
+            {Object.entries(NEWS_FEEDS).map(([k, v]) => (
+              <button key={k} onClick={() => setFeed(k)}
+                className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+                style={{ background: feed === k ? v.cor : v.bg, color: feed === k ? "#fff" : v.cor }}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={fetchNews} title="Atualizar" className="p-1.5 rounded-lg" style={{ background: "#f1f5f9" }}>
+            <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+          </button>
+        </div>
+        {lastUpdate && (
+          <div className="text-xs opacity-30 mt-2">
+            Atualizado às {lastUpdate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · atualiza a cada 15 min
+          </div>
+        )}
+      </Card>
+
+      {loading && items.length === 0 ? (
+        <div className="space-y-2">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="p-3">
+              <div className="flex gap-3 animate-pulse">
+                <div className="w-16 h-16 rounded-lg bg-gray-200 shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-3 bg-gray-200 rounded w-4/5" />
+                  <div className="h-2 bg-gray-200 rounded w-1/3" />
+                  <div className="h-2 bg-gray-200 rounded w-full" />
+                  <div className="h-2 bg-gray-200 rounded w-2/3" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : hasError || items.length === 0 ? (
+        <Card className="p-8 text-center">
+          <div className="text-3xl mb-3">📡</div>
+          <div className="text-sm font-semibold opacity-50 mb-4">Não foi possível carregar as notícias</div>
+          <button onClick={fetchNews} className="px-4 py-2 rounded-lg text-xs font-bold text-white"
+            style={{ background: cfg.cor }}>Tentar novamente</button>
         </Card>
-      ))}
+      ) : (
+        <div className="space-y-2">
+          {items.map((item, i) => <NewsCard key={i} item={item} cor={cfg.cor} />)}
+        </div>
+      )}
     </div>
   );
 }
