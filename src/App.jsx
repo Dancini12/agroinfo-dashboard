@@ -342,6 +342,9 @@ function NewsCard({ item, cor }) {
             <div className="text-sm font-semibold leading-snug mb-1 group-hover:underline" style={{ color: cor }}>
               {item.title}
             </div>
+            {item.author && (
+              <div className="text-xs opacity-40 mb-1 font-medium">{item.author}</div>
+            )}
             {desc && (
               <div className="text-xs opacity-40 leading-relaxed line-clamp-2">{desc}</div>
             )}
