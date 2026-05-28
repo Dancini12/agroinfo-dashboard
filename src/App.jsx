@@ -328,18 +328,6 @@ const NEWS_FEEDS = {
 function stripHtml(html = "") {
   return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&mdash;/g, "—").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
-function timeAgo(dateStr) {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  const diff = Date.now() - date.getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "agora";
-  if (m < 60) return `${m}min atrás`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h atrás`;
-  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
-}
-
 function NewsCard({ item, cor }) {
   const desc = stripHtml(item.description || "").slice(0, 160);
   return (
@@ -353,11 +341,6 @@ function NewsCard({ item, cor }) {
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold leading-snug mb-1 group-hover:underline" style={{ color: cor }}>
               {item.title}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs opacity-40 mb-1">
-              {item.author && <span className="font-medium">{item.author}</span>}
-              {item.author && <span>·</span>}
-              <span>{timeAgo(item.pubDate)}</span>
             </div>
             {desc && (
               <div className="text-xs opacity-40 leading-relaxed line-clamp-2">{desc}</div>
@@ -374,7 +357,6 @@ function NoticiasTab() {
   const [feed, setFeed] = useState("agro");
   const [news, setNews] = useState({ agro: [], mercado: [] });
   const [loading, setLoading] = useState(true);
-  const [lastUpdate, setLastUpdate] = useState(null);
   const [hasError, setHasError] = useState(false);
 
   const fetchNews = useCallback(async () => {
@@ -389,14 +371,13 @@ function NoticiasTab() {
         agro:    aRes.status === "fulfilled" && aRes.value?.status === "ok" ? aRes.value.items : [],
         mercado: mRes.status === "fulfilled" && mRes.value?.status === "ok" ? mRes.value.items : [],
       });
-      setLastUpdate(new Date());
     } catch (_) { setHasError(true); }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchNews();
-    const t = setInterval(fetchNews, 15 * 60 * 1000);
+    const t = setInterval(fetchNews, 5 * 60 * 1000);
     return () => clearInterval(t);
   }, [fetchNews]);
 
@@ -420,11 +401,7 @@ function NoticiasTab() {
             <RefreshCw size={12} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
           </button>
         </div>
-        {lastUpdate && (
-          <div className="text-xs opacity-30 mt-2">
-            Atualizado às {lastUpdate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} · atualiza a cada 15 min
-          </div>
-        )}
+        <div className="text-xs opacity-30 mt-2">🔄 Atualização automática a cada 5 minutos</div>
       </Card>
 
       {loading && items.length === 0 ? (
